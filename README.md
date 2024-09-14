@@ -21,7 +21,7 @@
 - Tile Trio
 - Stone Age
 - Bouncemasters
-
+- Hide Ball
 ## Installation
 Clone the repository and install the necessary dependencies:
 
