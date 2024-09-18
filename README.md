@@ -22,6 +22,8 @@
 - Stone Age
 - Bouncemasters
 - Hide Ball
+- Count Masters
+- Pin Out Master
 ## Installation
 Clone the repository and install the necessary dependencies:
 
