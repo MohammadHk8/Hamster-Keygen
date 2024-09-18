@@ -26,7 +26,7 @@
 Clone the repository and install the necessary dependencies:
 
 ```bash
-git clone https://github.com/yourusername/hamster-keygen.git
+git clone https://github.com/MohammadHk8/hamster-keygen.git
 cd hamster-keygen
 pip install -r requirements.txt
 ```
