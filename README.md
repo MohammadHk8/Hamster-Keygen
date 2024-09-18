@@ -34,7 +34,7 @@ pip install -r requirements.txt
 ## Usage
 1. Run the script.
 2. Select a game from the list.
-3. Enter the number of keys to generate (1-40).
+3. Enter the number of keys to generate (1-28).
 4. The script will generate the keys and display them once the process is complete.
 
 ```bash
