@@ -4,6 +4,7 @@ import random
 import requests
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 # Configuration for different games
 game_promo_configs = {
@@ -90,11 +91,30 @@ game_promo_configs = {
         'promoId': '4bf4966c-4d22-439b-8ff2-dc5ebca1a600',
         'eventsDelay': 40000,
         'attemptsNumber': 30,
+    },
+    13: {
+        'name': 'Pin Out Master',
+        'appToken': 'd2378baf-d617-417a-9d99-d685824335f0',
+        'promoId': 'd2378baf-d617-417a-9d99-d685824335f0',
+        'eventsDelay': 20000,
+        'attemptsNumber': 30,
+    },
+    14: {
+        'name': 'Count Masters',
+        'appToken': '4bdc17da-2601-449b-948e-f8c7bd376553',
+        'promoId': '4bdc17da-2601-449b-948e-f8c7bd376553',
+        'eventsDelay': 20000,
+        'attemptsNumber': 30,
     }
 }
 
+session = requests.Session()  # Reuse session for faster requests
+
 current_app_config = None
 keygen_active = False
+progress_lock = threading.Lock()
+global_progress = 0
+total_attempts = 0
 
 def generate_client_id():
     timestamp = int(time.time() * 1000)
@@ -109,11 +129,11 @@ def login(client_id):
         'clientId': client_id,
         'clientOrigin': 'deviceid'
     }
-    response = requests.post(url, headers=headers, json=body)
+    response = session.post(url, headers=headers, json=body)  # Use session
     data = response.json()
     if response.status_code != 200:
         if data.get('error_code') == "TooManyIpRequest":
-            raise Exception('You have reached the rate limit. Please wait a few minutes and try again.')
+            raise Exception('Rate limit hit. Waiting before retrying.')
         else:
             raise Exception(data.get('error_message', 'Failed to log in'))
     return data['clientToken']
@@ -132,9 +152,8 @@ def emulate_progress(client_token):
         'eventId': generate_uuid(),
         'eventOrigin': 'undefined'
     }
-    response = requests.post(url, headers=headers, json=body)
+    response = session.post(url, headers=headers, json=body)
     data = response.json()
-    print("Event registered:", data)
     return data.get('hasCode', False)
 
 def generate_key(client_token):
@@ -144,9 +163,8 @@ def generate_key(client_token):
         'Authorization': f'Bearer {client_token}'
     }
     body = {'promoId': current_app_config['promoId']}
-    response = requests.post(url, headers=headers, json=body)
+    response = session.post(url, headers=headers, json=body)
     data = response.json()
-    print("Code generation response:", data)
     if response.status_code != 200:
         raise Exception(data.get('error_message', 'Failed to generate key'))
     return data['promoCode']
@@ -157,11 +175,13 @@ def sleep(ms):
 def delay_random():
     return random.random() / 3 + 1
 
-def update_progress(progress, total, step_percent):
-    progress_step = progress / total * 100
-    print(f"Progress: {round(progress_step + step_percent)}%")
+def update_total_progress():
+    global global_progress
+    with progress_lock:
+        global_progress += 1
+        if global_progress % (total_attempts // 20) == 0:  # Update progress every 5%
+            print(f"Overall Progress: {round((global_progress / total_attempts) * 100)}%")
 
-# Function to generate a single key
 def generate_single_key(i):
     client_id = generate_client_id()
     try:
@@ -171,15 +191,13 @@ def generate_single_key(i):
         return None
 
     key = None
-    step_percent = 100 / (current_app_config['attemptsNumber'])
-
     for attempt in range(current_app_config['attemptsNumber']):
         sleep(current_app_config['eventsDelay'] * delay_random())
         has_code = emulate_progress(client_token)
         if has_code:
             key = generate_key(client_token)
             break
-        update_progress(i + attempt / current_app_config['attemptsNumber'], 1, step_percent)
+        update_total_progress()
 
     if key:
         print(f"Generated key {i + 1}: {key}")
@@ -189,7 +207,10 @@ def generate_single_key(i):
     return key
 
 def main():
-    global keygen_active, current_app_config
+    global keygen_active, current_app_config, total_attempts, global_progress
+
+    # Reset progress trackers
+    global_progress = 0
 
     # Step 1: User selects the game
     print("Select a game:")
@@ -209,15 +230,13 @@ def main():
         print("Invalid number of keys, exiting.")
         return
 
+    total_attempts = key_count * current_app_config['attemptsNumber']
     keygen_active = True
-
     keys = set()
 
-    with ThreadPoolExecutor(max_workers=40) as executor:
-        # Submit all key generation tasks at once
+    with ThreadPoolExecutor(max_workers=min(key_count, 40)) as executor:  # Dynamic worker pool size
         futures = [executor.submit(generate_single_key, i) for i in range(key_count)]
 
-        # Process completed tasks
         for future in as_completed(futures):
             key = future.result()
             if key:
