@@ -24,6 +24,9 @@
 - Hide Ball
 - Count Masters
 - Pin Out Master
+- Infected Frontier
+- Among Water
+- Factory World
 ## Installation
 Clone the repository and install the necessary dependencies:
 
